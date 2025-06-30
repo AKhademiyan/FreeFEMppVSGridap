@@ -1,0 +1,54 @@
+
+load "UMFPACK64"
+include "getARGV.idp"
+load "iovtk"
+include "getARGV.idp"
+
+
+
+real L=getARGV("-L", 1); 
+real alpha=getARGV("-al", 0.2);
+real H= alpha * L; 
+real epsilon=getARGV("-ep", 0.8);
+real k= 2*pi/L; 
+
+border b1(t=0., L){x=t; y=-H*(1-epsilon*cos(k*x)); label=1;}; // bottom wall 
+border b2(t=-H*(1-epsilon), H*(1-epsilon)){x=L; y=t; label=2;}; // right openning 
+border b3(t=L, 0.){x=t; y=H*(1-epsilon*cos(k*x)); label=3;}; // top wall 
+border b4(t=H*(1-epsilon), -H*(1-epsilon)){x=0.; y=t; label=4;}; // left openning 
+
+// pressure on the left 
+real pl=getARGV("-dP", 10);
+// pressure on the right 
+real pr=0;
+
+int nnL = 300;
+int nnH = 40;
+
+mesh Th = buildmesh(b1(nnL) + b2(nnH) + b3(nnL) + b4(nnH));
+
+
+fespace Vh(Th, P2); 
+fespace Ph(Th, P1);
+
+Vh u, v;      // velocity components
+Vh uh, vh;
+Ph p;         // pressure
+Ph ph; 
+
+
+
+problem Stokes([u, v, p], [uh, vh, ph])
+= int2d(Th)(
+    dx(u)*dx(uh) + dy(u)*dy(uh)
+  + dx(v)*dx(vh) + dy(v)*dy(vh)
+  - p*(dx(uh) + dy(vh))
+  - ph*(dx(u) + dy(v))
+)
++ int1d(Th, 4)(-uh*p) //left (in)
++int1d(Th, 2)(uh*p) // right (out)
++ on(1, 3, u = 0, v = 0)       // walls: no-slip
++ on(4, p=pl)
++ on(2, p=pr);       //right opening: 
+
+Stokes;
