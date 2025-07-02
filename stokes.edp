@@ -1,0 +1,46 @@
+
+load "UMFPACK64"
+include "getARGV.idp"
+load "iovtk"
+include "getARGV.idp"
+load "gmsh"  
+
+string mshFile = getARGV("-mesh", "wavy.msh");
+// pressure on the left 
+real pl= 10;
+// pressure on the right 
+real pr=0;
+
+mesh Th = gmshload(mshFile);
+
+fespace Vh(Th, P2); 
+fespace Ph(Th, P1);
+
+Vh u, v;      // velocity components
+Vh uh, vh;
+Ph p;         // pressure
+Ph ph; 
+
+problem Stokes([u, v, p], [uh, vh, ph])
+= int2d(Th)(
+    dx(u)*dx(uh) + dy(u)*dy(uh)
+  + dx(v)*dx(vh) + dy(v)*dy(vh)
+  - p*(dx(uh) + dy(vh))
+  - ph*(dx(u) + dy(v))
+)
++ int1d(Th, 4)(-uh*p) //left (in)
++int1d(Th, 2)(uh*p) // right (out)
++ on(1, 3, u = 0, v = 0)       // walls: no-slip
++ on(4, p=pl)
++ on(2, p=pr);       //right opening: 
+
+real t0 = clock();
+Stokes;                          // your existing problem statement
+real elapsed = clock() - t0;
+cout << "Stokes solve time = " << elapsed << " s" << endl;
+
+cout << "Internal allocator (storageused) = "
+     << storageused()/1024.0/1024.0 << " MB" << endl;
+
+// calculate vorticity from flow
+Vh omega =dx(v)-dy(u); 
